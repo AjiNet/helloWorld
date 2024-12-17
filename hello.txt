@@ -3,3 +3,43 @@ Hello World !
 
 
 Erwan
+# Définir le chemin du dossier parent où se trouvent les sous-dossiers
+$racineDossier = "E:\Partages\Individuels"
+
+# Définir le type de permission : Lecture (R), Modification (M), Contrôle Total (F)
+$permissionType = "Modify"  # Changez en "FullControl" ou "Read" si nécessaire
+
+# Récupérer tous les sous-dossiers dans le dossier racine
+$sousDossiers = Get-ChildItem -Path $racineDossier -Directory
+
+# Boucle pour assigner les permissions NTFS
+foreach ($dossier in $sousDossiers) {
+    $nomDossier = $dossier.Name
+    $cheminComplet = $dossier.FullName
+
+    # Vérifier si le compte AD correspondant existe (utilisateur ou groupe)
+    $adObjet = Get-ADUser -Identity $nomDossier -ErrorAction SilentlyContinue
+    if (-not $adObjet) {
+        $adObjet = Get-ADGroup -Identity $nomDossier -ErrorAction SilentlyContinue
+    }
+
+    # Si le compte existe, attribuer les permissions NTFS
+    if ($adObjet) {
+        try {
+            Write-Host "Assignation des permissions à : $nomDossier sur $cheminComplet" -ForegroundColor Cyan
+            $acl = Get-Acl -Path $cheminComplet
+            $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                $nomDossier, $permissionType, "ContainerInherit,ObjectInherit", "None", "Allow"
+            )
+            $acl.SetAccessRule($accessRule)
+            Set-Acl -Path $cheminComplet -AclObject $acl
+            Write-Host "Permissions attribuées avec succès pour $nomDossier" -ForegroundColor Green
+        } catch {
+            Write-Error "Erreur lors de l'attribution des permissions pour $nomDossier : $_"
+        }
+    } else {
+        Write-Warning "Aucun compte AD trouvé pour $nomDossier. Permissions non appliquées."
+    }
+}
+
+Write-Host "Script terminé !" -ForegroundColor Yellow
